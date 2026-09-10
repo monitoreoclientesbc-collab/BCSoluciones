@@ -1,0 +1,60 @@
+#detailModal {
+  align-items: center;
+}
+
+#detailModal .modalCard.wide {
+  position: relative;
+  width: min(720px, calc(100vw - 24px));
+  max-width: 100%;
+  max-height: calc(100vh - 28px);
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #2f78c4 #dce8f1;
+  border-right: 4px solid #dce8f1;
+}
+
+#detailModal .modalCard.wide::-webkit-scrollbar {
+  width: 17px;
+}
+
+#detailModal .modalCard.wide::-webkit-scrollbar-track {
+  background: #dce8f1;
+  border-radius: 0 14px 14px 0;
+  box-shadow: inset 1px 0 3px #17324d1c;
+}
+
+#detailModal .modalCard.wide::-webkit-scrollbar-thumb {
+  min-height: 70px;
+  background: linear-gradient(180deg, #4c9bdd, #1e6098);
+  border: 4px solid #dce8f1;
+  border-radius: 14px;
+}
+
+#detailModal .modalCard.wide::-webkit-scrollbar-thumb:hover {
+  background: #174f7e;
+}
+
+#detailModal .modalHeader::after {
+  content: "Desplaza para ver más  ↓";
+  position: absolute;
+  right: 72px;
+  bottom: 17px;
+  color: #2f78c4;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  #detailModal .modalCard.wide {
+    max-height: calc(100vh - 12px);
+  }
+
+  #detailModal .modalHeader::after {
+    content: "↓";
+    right: 54px;
+    font-size: 18px;
+    line-height: 1;
+  }
+}

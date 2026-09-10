@@ -1,0 +1,13 @@
+{
+  "name": "crm-bc-soluciones",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CRM interno de BC Soluciones",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

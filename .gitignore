@@ -1,0 +1,9 @@
+data/**
+base-cases.js
+local-cases.js
+local-users.js
+*.log
+.env
+.env.*
+!.env.example
+node_modules/
