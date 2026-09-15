@@ -80,11 +80,21 @@ async function logEvent(event){const log=fsSync.existsSync(activityFile)?JSON.pa
 async function readLocalFolderData(){const files=[];for(const name of localFolderFiles){const filePath=path.join(here,name);try{const stat=await fs.stat(filePath);files.push({name,lastModified:stat.mtimeMs,size:stat.size,text:await fs.readFile(filePath,"utf8")});}catch(error){if(error.code!=="ENOENT")throw error;}}return {root:here,files};}
 function safeMasterPath(candidate){const resolved=path.isAbsolute(candidate)?path.resolve(candidate):path.resolve(masterRoot,candidate);const relative=path.relative(masterRoot,resolved);return relative && !relative.startsWith("..") && !path.isAbsolute(relative) ? resolved : null;}
 function normalizedName(value){return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"");}
-function parseCsv(text){const rows=[];let row=[],cell="",quoted=false;for(let i=0;i<text.length;i++){const char=text[i];if(char==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(char===','&&!quoted){row.push(cell);cell="";}else if((char==='\n'||char==='\r')&&!quoted){if(char==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(value=>String(value).trim()))rows.push(row);row=[];cell="";}else cell+=char;}if(cell||row.length){row.push(cell);if(row.some(value=>String(value).trim()))rows.push(row);}const headers=(rows.shift()||[]).map(value=>String(value).trim());return rows.map(values=>Object.fromEntries(headers.map((header,index)=>[header,String(values[index]||"").trim()])))}
-function prospectRoutingDepartment(service){const value=normalizedName(service);if(/pension|colpens/.test(value))return "Pensiones y Seguridad Social";if(/seguridadsocial|nomina|laboral|rrhh|sst|recursoshuman/.test(value))return "Gestión Humana y SG-SST";if(/impuest|tribut|dian|declar/.test(value))return "Impuestos";if(/contab|financ/.test(value))return "Contabilidad";if(/factur/.test(value))return "Facturación";if(/mercad|marketing|venta|comercial/.test(value))return "Mercadeo, Marketing, Ventas y Comercial";if(/inmob/.test(value))return "Inmobiliaria";if(/tecnolog|software|sistema/.test(value))return "Tecnología";return "Dirección General, Gerencia y Administración"}
-function prospectKey(row,index){return String(row["ID Site"]||row["Código compraventa"]||row["Correo"]||row["Teléfono"]||`sheet-row-${index+1}`).trim()}
-async function readProspectStatuses(){await fs.mkdir(dataDir,{recursive:true});if(!fsSync.existsSync(prospectsFile))return {};try{return JSON.parse(await fs.readFile(prospectsFile,"utf8"))}catch{return {}}}
-let prospectsCache={at:0,rows:[],syncedAt:null};
+function parseCsv(text){
+  const rows=[];let row=[],cell="",quoted=false;
+  for(let i=0;i<text.length;i++){
+    const char=text[i];
+    if(char==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}
+    else if(char===','&&!quoted){row.push(cell);cell="";}
+    else if((char==='\n'||char==='\r')&&!quoted){if(char==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(value=>String(value).trim()))rows.push(row);row=[];cell="";}
+    else cell+=char;
+  }
+  if(cell||row.length){row.push(cell);if(row.some(value=>String(value).trim()))rows.push(row);}
+  const headerIndex=rows.findIndex(values=>values.some(value=>String(value).trim()==="Nombre completo")&&values.some(value=>String(value).trim()==="Servicio solicitado"));
+  if(headerIndex<0)return [];
+  const headers=rows[headerIndex].map(value=>String(value).trim());
+  return rows.slice(headerIndex+1).map(values=>Object.fromEntries(headers.map((header,index)=>[header,String(values[index]||"").trim()])));
+}
 async function fetchProspects(){if(prospectsCache.rows.length&&Date.now()-prospectsCache.at<30000)return prospectsCache;const response=await fetch(prospectsCsvUrl,{signal:AbortSignal.timeout(12000),headers:{accept:"text/csv"}});if(!response.ok)throw new Error(`No fue posible leer la hoja de prospectos (${response.status})`);const rows=parseCsv(await response.text());const statuses=await readProspectStatuses();const prospects=rows.map((row,index)=>{const key=prospectKey(row,index),status=statuses[key]||{};return {key,registeredAt:row["Fecha de registro"]||"",fullName:row["Nombre completo"]||"",phone:row["Teléfono"]||"",email:row["Correo"]||"",service:row["Servicio solicitado"]||"",qrCode:row["Código compraventa"]||"",contactAuthorized:row["Autorizó contacto"]||"",sourceStatus:row["Estado"]||"",responsible:row["Responsable"]||"",notes:row["Observaciones"]||"",siteId:row["ID Site"]||"",routingDepartment:prospectRoutingDepartment(row["Servicio solicitado"]||""),status:status.status||"Nuevo",convertedCaseId:status.convertedCaseId||"",convertedAt:status.convertedAt||""};}).filter(item=>item.fullName||item.phone||item.email);prospectsCache={at:Date.now(),rows:prospects,syncedAt:new Date().toISOString()};return prospectsCache}
 async function findClientFolder(item){
   const direct=safeMasterPath(item.folderPath||"");
