@@ -1,5 +1,9 @@
 /* Ajuste compacto y responsive para pantallas pequenas y ventanas secundarias. */
 html,body{overflow-x:hidden}
+:root{--ink:#10283d;--muted:#4b6171}
+body{color:#10283d}
+.muted,.stat small,.alertRow small,.caseRow small,.detailGrid small{color:#4b6171}
+.topbar small{color:#14588f}
 .main::before{opacity:.34}
 .modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(16,44,67,.58);place-items:center;padding:12px;overflow-y:auto}
 .modal.visible{display:grid}
