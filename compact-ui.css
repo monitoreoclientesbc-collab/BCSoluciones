@@ -1,0 +1,41 @@
+/* Ajuste compacto y responsive para pantallas pequenas y ventanas secundarias. */
+html,body{overflow-x:hidden}
+.shell{min-height:100dvh}
+.sidebar{width:220px;padding:18px 12px}
+.brand{margin:0 8px 28px}
+.navItem{padding:9px 10px;font-size:13px}
+.topbar{min-height:86px;padding:16px 24px;gap:16px}
+.topbar h1{font-size:22px}
+.topActions{gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.topActions select,.topActions button{padding:9px 11px;font-size:12px}
+.content{padding:22px 24px}
+.panel{padding:16px}
+.stat{padding:14px}
+.stat strong{font-size:24px;margin-top:5px}
+.formGrid{gap:10px;margin-top:14px}
+.formGrid label{gap:4px;font-size:12px}
+.formGrid input,.formGrid select,.formGrid textarea{padding:8px 10px}
+.modal{padding:12px;overflow-y:auto;align-items:center}
+.modalCard{max-height:calc(100dvh - 24px);overflow-y:auto;padding:20px;max-width:380px}
+.modalCard.wide{max-width:min(680px,calc(100vw - 24px));padding:20px}
+.modalCard h2{font-size:18px;margin:8px 0 5px}
+.modalCard p{margin-bottom:14px;font-size:13px}
+.loginLogo{width:72px;height:72px;margin-bottom:8px}
+#loginModal .modalCard{padding:22px;max-width:360px}
+#loginModal .modalCard select,#loginModal .modalCard input{padding:10px;margin-bottom:9px}
+#recoveryModal .modalCard,#passwordModal .modalCard{padding:18px;text-align:left}
+#recoveryModal .modalHeader,#passwordModal .modalHeader{margin-bottom:8px}
+#detailModal .modalCard.wide{max-height:calc(100dvh - 24px);overflow-y:auto}
+.modalCard.wide .modalHeader{position:sticky;top:-20px;margin:-20px -20px 12px;padding:14px 20px 10px;background:#fff;z-index:4}
+@media(max-width:800px){
+  .sidebar{width:64px;padding:14px 8px}
+  .brand div,.navItem span,.sidebarFooter{display:none}
+  .brand{margin:0 4px 24px}
+  .navItem{justify-content:center;padding:10px 5px}
+  .topbar{padding:14px 16px;display:block}
+  .topActions{margin-top:12px;justify-content:flex-start}
+  .content{padding:16px}
+  .modal{padding:8px;align-items:center}
+  .modalCard,.modalCard.wide,#loginModal .modalCard{width:min(100%,420px);max-height:calc(100dvh - 16px);padding:16px}
+  .modalCard.wide .modalHeader{top:-16px;margin:-16px -16px 10px;padding:12px 16px 9px}
+}
