@@ -101,7 +101,7 @@ async function initialMessages(){
   await fs.writeFile(messagesFile,"[]","utf8");return [];
 }
 let messages = await initialMessages();
-function json(res, status, value) { res.writeHead(status, { "content-type":"application/json; charset=utf-8", "cache-control":"no-store", "x-content-type-options":"nosniff", "access-control-allow-origin":"*" }); res.end(JSON.stringify(value)); }
+function json(res, status, value) { if (res.headersSent || res.writableEnded) return false; res.writeHead(status, { "content-type":"application/json; charset=utf-8", "cache-control":"no-store", "x-content-type-options":"nosniff", "access-control-allow-origin":"*" }); res.end(JSON.stringify(value)); return true; }
 async function body(req) { let text=""; for await (const chunk of req) text += chunk; return text ? JSON.parse(text) : null; }
 async function rawBody(req,limit=25*1024*1024){const chunks=[];let total=0;for await(const chunk of req){total+=chunk.length;if(total>limit)throw new Error("El mensaje supera el límite de 25 MB");chunks.push(chunk)}return Buffer.concat(chunks)}
 function safeAttachmentName(name){return path.basename(String(name||"archivo")).replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚñÑ._ ()-]/g,"_").slice(0,140)||"archivo"}
@@ -158,7 +158,12 @@ const server = http.createServer(async (req, res) => {
     const blockedExtension = [".json",".md",".mjs",".ps1",".csv"].includes(path.extname(normalizedRelative));
     const protectedStatic = normalizedRelative === "data" || normalizedRelative.startsWith("data/") || blockedExtension;
     if (protectedStatic || relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck) || !fsSync.existsSync(file)) return json(res, 404, { error:"No encontrado" });
-    res.writeHead(200, { "content-type": mime[path.extname(file)] || "application/octet-stream", "cache-control":"no-store", "x-content-type-options":"nosniff" }); res.end(await fs.readFile(file));
-  } catch (error) { json(res, 500, { error:String(error.message || error) }); }
+    const content = await fs.readFile(file);
+    if (res.writableEnded) return;
+    res.writeHead(200, { "content-type": mime[path.extname(file)] || "application/octet-stream", "cache-control":"no-store", "x-content-type-options":"nosniff" });
+    res.end(content);
+  } catch (error) {
+    if (!json(res, 500, { error:String(error.message || error) }) && !res.writableEnded) res.destroy(error);
+  }
 });
 server.listen(port, "0.0.0.0", () => console.log(`BC Soluciones CRM disponible en http://localhost:${port}`));
