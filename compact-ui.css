@@ -1,10 +1,16 @@
 /* Ajuste compacto y responsive para pantallas pequenas y ventanas secundarias. */
 html,body{overflow-x:hidden}
-:root{--ink:#10283d;--muted:#4b6171}
+:root{--ink:#10283d;--muted:#4b6171;--sidebar-red:#a9152a;--sidebar-red-dark:#891021}
 body{color:#10283d}
 .muted,.stat small,.alertRow small,.caseRow small,.detailGrid small{color:#4b6171}
 .topbar small{color:#14588f}
 .main::before{opacity:.34}
+.sidebar{background:linear-gradient(180deg,var(--sidebar-red) 0%,var(--sidebar-red-dark) 100%);color:#fff}
+.brand small,.sidebarFooter{color:#ffe1e5}
+.navItem{color:#ffe1e5}
+.navItem:hover,.navItem.active{background:rgba(255,255,255,.20);color:#fff}
+.sidebarFooter{border-top-color:rgba(255,255,255,.25)}
+.sidebar .textButton{color:#ffd2d8}
 .modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(16,44,67,.58);place-items:center;padding:12px;overflow-y:auto}
 .modal.visible{display:grid}
 .modalCard{display:block;background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(9,34,56,.28);width:100%;max-width:380px;max-height:calc(100dvh - 24px);overflow-y:auto;padding:20px;text-align:center}
