@@ -5,6 +5,10 @@ body{color:#10283d}
 .muted,.stat small,.alertRow small,.caseRow small,.detailGrid small{color:#4b6171}
 .topbar small{color:#14588f}
 .main::before{opacity:.34}
+.content{background:rgba(245,247,250,.86);position:relative}
+.dashboardWelcome{background:linear-gradient(120deg,#8b1022 0%,#b51d34 62%,#cf3449 100%);box-shadow:0 13px 30px rgba(111,12,29,.26)}
+.dashboardWelcome small{color:#ffe4e7}
+.dashboardWelcome p{color:#ffedf0}
 .sidebar{background:linear-gradient(180deg,var(--sidebar-red) 0%,var(--sidebar-red-dark) 100%);color:#fff}
 .brand small,.sidebarFooter{color:#ffe1e5}
 .navItem{color:#ffe1e5}
