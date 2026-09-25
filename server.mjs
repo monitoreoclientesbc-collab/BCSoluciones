@@ -4,6 +4,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { colombiaToday, validDate, resolutionSchedule, googleReady, mailReady, createGoogleEvent, sendDueEmail } from "./calendar-integration.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const masterRoot = path.dirname(here);
@@ -83,7 +84,7 @@ const departmentGroups = {
 function departmentGroup(value){const name=String(value||"").trim();for(const [group,aliases] of Object.entries(departmentGroups)){if(name===group||aliases.includes(name))return group}return name}
 function sameDepartment(first,second){return departmentGroup(first)===departmentGroup(second)}
 function caseVisibleTo(item,user){return Boolean(user&&(user.all||sameDepartment(item.department,user.department)||item.createdByUsername===user.username||(Array.isArray(item.visibilityDepartments)&&item.visibilityDepartments.some(department=>sameDepartment(department,user.department)))))}
-async function loadUsers(){await fs.mkdir(dataDir,{recursive:true});if(fsSync.existsSync(userFile)){const existing=JSON.parse(await fs.readFile(userFile,"utf8"));const missingSeeds=userSeeds.filter(([username])=>!existing.some(user=>user.username===username));if(missingSeeds.length){const additions=missingSeeds.map(([username,variable,name,all,department])=>({username,passwordHash:crypto.scryptSync(String(process.env[variable]||"BC-SGSST-RRHH-2026!"),username,32).toString("hex"),name,all,department}));const merged=[...existing,...additions];await fs.writeFile(userFile,JSON.stringify(merged,null,2),"utf8");return merged;}const migrated=existing.map(user=>user.username==="direccion.general"?{...user,all:true,department:"Dirección General"}:user);if(JSON.stringify(migrated)!==JSON.stringify(existing))await fs.writeFile(userFile,JSON.stringify(migrated,null,2),"utf8");return migrated;}const defaultUsers=usersFromEnvironment();await fs.writeFile(userFile,JSON.stringify(defaultUsers,null,2),"utf8");return defaultUsers;}
+async function loadUsers(){await fs.mkdir(dataDir,{recursive:true});if(fsSync.existsSync(userFile)){const existing=JSON.parse(await fs.readFile(userFile,"utf8"));const missingSeeds=userSeeds.filter(([username])=>!existing.some(user=>user.username===username));if(missingSeeds.length){const missingPasswords=missingSeeds.filter(([,variable])=>!process.env[variable]);if(missingPasswords.length)throw new Error(`Faltan contraseñas para los perfiles nuevos: ${missingPasswords.map(([,variable])=>variable).join(", ")}`);const additions=missingSeeds.map(([username,variable,name,all,department])=>({username,passwordHash:crypto.scryptSync(process.env[variable],username,32).toString("hex"),name,all,department}));const merged=[...existing,...additions];await fs.writeFile(userFile,JSON.stringify(merged,null,2),"utf8");return merged;}const migrated=existing.map(user=>user.username==="direccion.general"?{...user,all:true,department:"Dirección General"}:user);if(JSON.stringify(migrated)!==JSON.stringify(existing))await fs.writeFile(userFile,JSON.stringify(migrated,null,2),"utf8");return migrated;}const defaultUsers=usersFromEnvironment();await fs.writeFile(userFile,JSON.stringify(defaultUsers,null,2),"utf8");return defaultUsers;}
 async function loadDepartments(){
   await fs.mkdir(dataDir,{recursive:true});
   if(fsSync.existsSync(departmentsFile)){
@@ -197,6 +198,28 @@ const defaultCompanyProfile = {
 async function loadJsonFile(file, fallback){await fs.mkdir(dataDir,{recursive:true});if(fsSync.existsSync(file))return JSON.parse(await fs.readFile(file,"utf8"));await fs.writeFile(file,JSON.stringify(fallback,null,2),"utf8");return fallback;}
 let companyProfile = await loadJsonFile(companyProfileFile, defaultCompanyProfile);
 let calendarItems = await loadJsonFile(calendarFile, []);
+let calendarWorkerBusy = false;
+async function saveCalendar(){await fs.writeFile(calendarFile,JSON.stringify(calendarItems,null,2),"utf8")}
+async function processCalendarQueue(){
+  if(calendarWorkerBusy)return;
+  calendarWorkerBusy=true;
+  try{
+    const today=colombiaToday();
+    for(const item of calendarItems){
+      if(item.status==="Cancelada")continue;
+      if(!item.googleEventUrl&&googleReady()){
+        try{item.googleEventUrl=await createGoogleEvent(item);item.googleSyncError="";await saveCalendar()}
+        catch(error){item.googleSyncError=error.message;await saveCalendar()}
+      }
+      if(item.resolution&&item.date<=today&&!item.emailSentAt&&mailReady()&&(!googleReady()||item.googleEventUrl)){
+        try{item.emailMessageId=await sendDueEmail(item);item.emailSentAt=new Date().toISOString();item.emailError="";await saveCalendar();await logEvent({type:"resolution_email_sent",calendarId:item.id})}
+        catch(error){item.emailError=error.message;await saveCalendar()}
+      }
+    }
+  }finally{calendarWorkerBusy=false}
+}
+setInterval(()=>processCalendarQueue().catch(error=>console.error("Agenda:",error)),5*60*1000).unref();
+setTimeout(()=>processCalendarQueue().catch(error=>console.error("Agenda:",error)),5000).unref();
 function directoryPayload(){return {departments:departmentDirectory.map(item=>({...item})),users:authUsers.map(publicUser)}}
 function activeDepartment(name){return departmentDirectory.find(item=>item.active!==false&&item.name===name)}
 function validUsername(value){return /^[a-z0-9][a-z0-9._-]{2,49}$/.test(String(value||""))}
@@ -258,7 +281,19 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/company-profile" && req.method === "GET") { const user=sessionUser(req); if(!user)return json(res,401,{error:"Sesión no iniciada"}); return json(res,200,companyProfile); }
     if (url.pathname === "/api/company-profile" && req.method === "PUT") { const user=sessionUser(req); if(!user || !user.all)return json(res,403,{error:"Solo Dirección General puede editar el perfil de la empresa"}); const input=await body(req); companyProfile={...defaultCompanyProfile,...companyProfile,...(input||{}),updatedAt:new Date().toISOString(),updatedBy:user.username}; await fs.writeFile(companyProfileFile,JSON.stringify(companyProfile,null,2),"utf8"); await logEvent({type:"company_profile_updated",username:user.username}); return json(res,200,companyProfile); }
     if (url.pathname === "/api/calendar" && req.method === "GET") { const user=sessionUser(req); if(!user)return json(res,401,{error:"Sesión no iniciada"}); const visible=calendarItems.filter(item=>user.all||item.department==="Todos"||sameDepartment(item.department,user.department)||item.username===user.username); return json(res,200,visible.sort((a,b)=>`${a.date} ${a.time||""}`.localeCompare(`${b.date} ${b.time||""}`))); }
-    if (url.pathname === "/api/calendar" && req.method === "POST") { const user=sessionUser(req); if(!user || !user.all)return json(res,403,{error:"Solo Dirección General puede programar tareas y reuniones"}); const input=await body(req); const title=String(input?.title||"").trim(), date=String(input?.date||"").slice(0,10), department=String(input?.department||"").trim(); if(!title||!date||!department)return json(res,400,{error:"La actividad requiere título, fecha y departamento"}); const item={id:`CAL-${Date.now().toString().slice(-8)}`,type:["Tarea","Reunión"].includes(input?.type)?input.type:"Tarea",title:title.slice(0,180),description:String(input?.description||"").trim().slice(0,4000),date,time:String(input?.time||"").slice(0,5),department,username:String(input?.username||"").trim(),priority:["Alta","Media","Baja"].includes(input?.priority)?input.priority:"Media",status:"Pendiente",createdBy:user.name,createdAt:new Date().toISOString()}; calendarItems.push(item); await fs.writeFile(calendarFile,JSON.stringify(calendarItems,null,2),"utf8"); await logEvent({type:"calendar_created",username:user.username,calendarId:item.id,department:item.department}); return json(res,201,item); }
+    if (url.pathname === "/api/calendar/config" && req.method === "GET") { const user=sessionUser(req);if(!user)return json(res,401,{error:"Sesión no iniciada"});return json(res,200,{google:googleReady(),email:mailReady()}) }
+    if (url.pathname === "/api/calendar/resolution" && req.method === "POST") {
+      const user=sessionUser(req);if(!user||(!user.all&&!sameDepartment(user.department,"Facturación")))return json(res,403,{error:"Solo Facturación y Dirección General pueden programar resoluciones"});
+      const input=await body(req),client=String(input?.client||"").trim().slice(0,160),nit=String(input?.nit||"").trim().slice(0,30),number=String(input?.number||"").trim().slice(0,100),expiry=String(input?.expiry||"");
+      if(!client||!nit||!number||!validDate(expiry))return json(res,400,{error:"Registra cliente, NIT, número de resolución y fecha de vencimiento válida"});
+      let schedule;try{schedule=resolutionSchedule(expiry)}catch(error){return json(res,400,{error:error.message})}
+      if(calendarItems.some(item=>item.resolution?.nit===nit&&item.resolution?.number===number&&item.resolution?.expiry===expiry&&item.status!=="Cancelada"))return json(res,409,{error:"Esta resolución ya tiene avisos programados"});
+      const batch=crypto.randomUUID(),now=new Date().toISOString();
+      const created=schedule.map(({days,date})=>({id:crypto.randomUUID(),type:days?"Tarea":"Evento",title:`${days?`Renovar en ${days} días`:"Vence hoy"} resolución DIAN ${number} · ${client}`.slice(0,180),description:`Verificar vigencia y rango de numeración autorizado; gestionar renovación de la resolución ${number} para ${client} (NIT ${nit}). Vencimiento: ${expiry}.`,date,time:"",department:"Facturación",username:"",priority:days<=5?"Alta":"Media",status:"Pendiente",resolution:{client,nit,number,expiry,days,batch},createdBy:user.name,createdAt:now}));
+      calendarItems.push(...created);await saveCalendar();await logEvent({type:"resolution_scheduled",username:user.username,nit,number,expiry,count:created.length});
+      processCalendarQueue().catch(error=>console.error("Agenda:",error));return json(res,201,{items:created,googleConfigured:googleReady(),emailConfigured:mailReady()});
+    }
+    if (url.pathname === "/api/calendar" && req.method === "POST") { const user=sessionUser(req); if(!user || !user.all)return json(res,403,{error:"Solo Dirección General puede programar tareas y reuniones generales"}); const input=await body(req); const title=String(input?.title||"").trim(), date=String(input?.date||""), department=String(input?.department||"").trim(); if(!title||!validDate(date)||!department)return json(res,400,{error:"La actividad requiere título, fecha válida y departamento"}); const item={id:crypto.randomUUID(),type:["Tarea","Reunión","Evento"].includes(input?.type)?input.type:"Tarea",title:title.slice(0,180),description:String(input?.description||"").trim().slice(0,4000),date,time:String(input?.time||"").slice(0,5),department,username:String(input?.username||"").trim(),priority:["Alta","Media","Baja"].includes(input?.priority)?input.priority:"Media",status:"Pendiente",createdBy:user.name,createdAt:new Date().toISOString()}; calendarItems.push(item); await saveCalendar(); await logEvent({type:"calendar_created",username:user.username,calendarId:item.id,department:item.department}); processCalendarQueue().catch(error=>console.error("Agenda:",error));return json(res,201,item); }
     if (url.pathname.startsWith("/api/calendar/") && req.method === "PUT") { const user=sessionUser(req); if(!user)return json(res,401,{error:"Sesión no iniciada"}); const id=decodeURIComponent(url.pathname.slice("/api/calendar/".length)); const current=calendarItems.find(item=>item.id===id); if(!current)return json(res,404,{error:"Actividad no encontrada"}); if(!user.all&&!sameDepartment(current.department,user.department)&&current.username!==user.username)return json(res,403,{error:"No puedes actualizar esta actividad"}); const input=await body(req); const next={...current,status:["Pendiente","En proceso","Completada","Cancelada"].includes(input?.status)?input.status:current.status,updatedAt:new Date().toISOString()}; calendarItems=calendarItems.map(item=>item.id===id?next:item); await fs.writeFile(calendarFile,JSON.stringify(calendarItems,null,2),"utf8"); await logEvent({type:"calendar_updated",username:user.username,calendarId:id,status:next.status}); return json(res,200,next); }
     if (url.pathname === "/api/messages" && req.method === "GET") { const user=sessionUser(req); if(!user)return json(res,401,{error:"Sesión no iniciada"}); return json(res,200,messages.filter(message=>messageVisible(message,user)).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).map(publicMessage)); }
     if (url.pathname === "/api/messages" && req.method === "POST") {

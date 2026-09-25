@@ -1,5 +1,13 @@
 # BC Soluciones · CRM interno
 
+## Avisos de resoluciones DIAN y Google Calendar
+
+Facturación y Dirección General pueden registrar el cliente, NIT, número de resolución y fecha de vencimiento en «Agenda y alertas». El CRM crea avisos 30, 15 y 5 días antes, además del evento del vencimiento; omite fechas que ya transcurrieron e impide duplicar la misma resolución. Dirección General también puede programar y monitorear tareas, reuniones y eventos generales. La fecha se toma de la resolución aportada; el control del agotamiento del rango autorizado sigue siendo una verificación operativa independiente.
+
+Para sincronizar eventos y enviar automáticamente un correo a Dirección General en cada fecha programada, configure en Railway las variables `BC_GOOGLE_CLIENT_ID`, `BC_GOOGLE_CLIENT_SECRET`, `BC_GOOGLE_REFRESH_TOKEN`, `BC_GOOGLE_CALENDAR_ID`, `BC_BILLING_EMAIL` y `BC_GENERAL_EMAIL`. El token debe pertenecer a la cuenta corporativa de Facturación (o a una cuenta con la dirección remitente validada en Gmail) y tener los alcances `https://www.googleapis.com/auth/calendar.events` y `https://www.googleapis.com/auth/gmail.send`. Active las API de Google Calendar y Gmail en el proyecto de Google Cloud; dé acceso al calendario institucional a Dirección General. Guarde credenciales solo en el gestor de variables del servicio, nunca en el repositorio. La tarea del servidor revisa cada cinco minutos los eventos sin sincronizar y los correos vencidos pendientes, con fecha local `America/Bogota`. Los correos no se marcan como enviados hasta recibir confirmación de Gmail. Las actividades permanecen en el CRM si la integración todavía no está configurada.
+
+La validación de vencimiento debe atender la fecha y el rango de numeración autorizados en la resolución DIAN concreta. Este módulo no presume una vigencia universal ni presenta la actividad del calendario como renovación efectivamente realizada.
+
 Primera versión funcional de un CRM web interno para organizar clientes, casos y alertas por departamento.
 
 ## Incluye
