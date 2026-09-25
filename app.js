@@ -95,6 +95,7 @@ function calendarView(){
   const billing=state.user.all||departmentGroup(state.user.department)==="Facturación";
   const rows=state.calendar.slice().sort((a,b)=>(a.date+' '+(a.time||'')).localeCompare(b.date+' '+(b.time||'')));
   let out='<div class="panel"><div class="panelHeader"><div><h2>Agenda y alertas</h2><span class="muted">Seguimiento de actividades y vencimientos de resoluciones DIAN</span></div><button id="refreshCalendar" class="secondary">↻ Actualizar</button></div>';
+  if(state.user.all)out+='<div class="formActions"><button id="connectGoogle" type="button" class="secondary">Vincular Google Calendar y Gmail</button><small id="googleConnectStatus" role="status"></small></div>';
   if(billing)out+='<h3>Renovación de numeración de facturación DIAN</h3><p class="muted">Registra la fecha exacta de vencimiento de la resolución. Se crean avisos a 30, 15 y 5 días, además del vencimiento; las fechas anteriores a hoy se omiten. Verifica también el agotamiento del rango autorizado.</p><form id="resolutionForm" class="formGrid"><label>Cliente o razón social<input name="client" required maxlength="160"></label><label>NIT<input name="nit" required maxlength="30"></label><label>Número de resolución DIAN<input name="number" required maxlength="100"></label><label>Vencimiento de la resolución<input name="expiry" type="date" required></label><div class="formActions fullField"><button class="primary">Programar avisos DIAN</button><small id="resolutionStatus" role="status"></small></div></form>';
   if(state.user.all)out+='<h3>Programación y monitoreo de Dirección General</h3><form id="calendarForm" class="formGrid"><label>Tipo<select name="type"><option>Tarea</option><option>Reunión</option><option>Evento</option></select></label><label>Título<input name="title" required maxlength="180"></label><label>Fecha<input name="date" type="date" required></label><label>Hora<input name="time" type="time"></label><label>Departamento<select name="department"><option>Todos</option>'+departments.filter(d=>d!=="Dirección General").map(d=>'<option>'+esc(d)+'</option>').join('')+'</select></label><label>Perfil<select name="username"><option value="">Todos los perfiles del departamento</option>'+users.filter(u=>!u.all).map(u=>'<option value="'+esc(u.username)+'">'+esc(u.name)+' · '+esc(u.department)+'</option>').join('')+'</select></label><label>Prioridad<select name="priority"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label><label class="fullField">Detalle<textarea name="description" rows="2"></textarea></label><div class="formActions fullField"><button class="primary">Programar actividad</button><small id="calendarStatus" role="status"></small></div></form>';
   out+='</div><div class="panel"><div class="calendarList">';
@@ -184,6 +185,12 @@ document.addEventListener("submit",async event=>{
   }catch(error){status.textContent=error.message}finally{button.disabled=false}
 });
 document.addEventListener("click",async event=>{if(!event.target.closest("#refreshCalendar"))return;await loadCalendar();render()});
+document.addEventListener("click",async event=>{
+  if(!event.target.closest("#connectGoogle"))return;
+  const status=$("#googleConnectStatus");status.textContent="Preparando autorización…";
+  try{const response=await fetch("/api/google/connect");const data=await response.json();if(!response.ok)throw new Error(data.error);window.location.assign(data.url)}
+  catch(error){status.textContent=error.message||"No fue posible iniciar la vinculación"}
+});
 document.addEventListener("change",async event=>{
   const select=event.target.closest("[data-calendar-status]");if(!select)return;
   const item=state.calendar.find(row=>row.id===select.dataset.calendarStatus);if(!item)return;

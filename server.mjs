@@ -4,7 +4,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { colombiaToday, validDate, resolutionSchedule, googleReady, mailReady, createGoogleEvent, sendDueEmail } from "./calendar-integration.mjs";
+import { colombiaToday, validDate, resolutionSchedule, googleReady, mailReady, googleConnectReady, googleAuthorizationUrl, exchangeGoogleCode, configureGoogleTokenStorage, createGoogleEvent, sendDueEmail } from "./calendar-integration.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const masterRoot = path.dirname(here);
@@ -23,6 +23,9 @@ const prospectsSheetGid = process.env.BC_PROSPECTS_SHEET_GID || "470599580";
 const prospectsCsvUrl = process.env.BC_PROSPECTS_CSV_URL || `https://docs.google.com/spreadsheets/d/${prospectsSpreadsheetId}/export?format=csv&gid=${prospectsSheetGid}`;
 const companyProfileFile = path.join(dataDir, "company-profile.json");
 const calendarFile = path.join(dataDir, "calendar.json");
+await configureGoogleTokenStorage(path.join(dataDir,"google-oauth.enc.json"));
+const googleRedirectUri = `${process.env.BC_PUBLIC_ORIGIN || "https://bcsoluciones-production.up.railway.app"}/api/google/callback`;
+const oauthStates = new Map();
 const messageAttachmentsDir = path.join(dataDir, "message-attachments");
 const localFolderFiles = ["local-cases.js", "base-cases.js", "local-users.js", "cases.json", "users.json"];
 const port = Number(process.env.PORT || process.env.BC_CRM_PORT || 8787);
@@ -282,6 +285,20 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/company-profile" && req.method === "PUT") { const user=sessionUser(req); if(!user || !user.all)return json(res,403,{error:"Solo Dirección General puede editar el perfil de la empresa"}); const input=await body(req); companyProfile={...defaultCompanyProfile,...companyProfile,...(input||{}),updatedAt:new Date().toISOString(),updatedBy:user.username}; await fs.writeFile(companyProfileFile,JSON.stringify(companyProfile,null,2),"utf8"); await logEvent({type:"company_profile_updated",username:user.username}); return json(res,200,companyProfile); }
     if (url.pathname === "/api/calendar" && req.method === "GET") { const user=sessionUser(req); if(!user)return json(res,401,{error:"Sesión no iniciada"}); const visible=calendarItems.filter(item=>user.all||item.department==="Todos"||sameDepartment(item.department,user.department)||item.username===user.username); return json(res,200,visible.sort((a,b)=>`${a.date} ${a.time||""}`.localeCompare(`${b.date} ${b.time||""}`))); }
     if (url.pathname === "/api/calendar/config" && req.method === "GET") { const user=sessionUser(req);if(!user)return json(res,401,{error:"Sesión no iniciada"});return json(res,200,{google:googleReady(),email:mailReady()}) }
+    if (url.pathname === "/api/google/connect" && req.method === "GET") {
+      const user=sessionUser(req);if(!user?.all)return json(res,403,{error:"Solo Dirección General puede vincular Google"});
+      if(!googleConnectReady())return json(res,503,{error:"Falta registrar el cliente OAuth de Google y la clave de cifrado en Railway"});
+      const state=crypto.randomBytes(32).toString("hex");oauthStates.set(state,{session:cookieValue(req,"bc_session"),expires:Date.now()+10*60*1000});
+      return json(res,200,{url:googleAuthorizationUrl(state,googleRedirectUri)});
+    }
+    if (url.pathname === "/api/google/callback" && req.method === "GET") {
+      const state=String(url.searchParams.get("state")||""),pending=oauthStates.get(state);oauthStates.delete(state);
+      const user=sessionUser(req);
+      if(!pending||pending.expires<Date.now()||pending.session!==cookieValue(req,"bc_session")||!user?.all)return json(res,403,{error:"Vinculación vencida o no autorizada"});
+      if(url.searchParams.get("error"))return json(res,400,{error:"Google no autorizó la vinculación"});
+      try{const email=await exchangeGoogleCode(String(url.searchParams.get("code")||""),googleRedirectUri);await logEvent({type:"google_connected",username:user.username,email});processCalendarQueue().catch(error=>console.error("Agenda:",error));res.writeHead(302,{location:"/?google=connected"});return res.end()}
+      catch(error){console.error("Vinculación Google:",error.message);return json(res,502,{error:error.message})}
+    }
     if (url.pathname === "/api/calendar/resolution" && req.method === "POST") {
       const user=sessionUser(req);if(!user||(!user.all&&!sameDepartment(user.department,"Facturación")))return json(res,403,{error:"Solo Facturación y Dirección General pueden programar resoluciones"});
       const input=await body(req),client=String(input?.client||"").trim().slice(0,160),nit=String(input?.nit||"").trim().slice(0,30),number=String(input?.number||"").trim().slice(0,100),expiry=String(input?.expiry||"");
