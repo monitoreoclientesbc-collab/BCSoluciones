@@ -25,7 +25,8 @@ Primera versión funcional de un CRM web interno para organizar clientes, casos 
 - Copia rápida de la ruta de carpeta desde el índice documental.
 - Actualización manual de datos para sincronizar cambios realizados por otros usuarios.
 - Confirmación de guardado contra el servidor; los rechazos muestran el motivo y revierten el cambio local.
-- Bloqueo del estado Facturado hasta que el caso haya pasado por Recursos humanos.
+- Facturación sin requisito técnico de validación previa por Recursos Humanos; Dirección General dispone de una vista consolidada de casos facturados.
+- Prospectos QR sincroniza registros de prospectos y aliados desde la hoja “BC Soluciones - Registro de prospectos QR”. Las filas con Tipo de registro, Tipo o Categoría igual a `Aliado` se visualizan en el apartado de aliados y pueden convertirse en casos con procedencia `Aliado o convenio`.
 - Registro opcional de teléfono para una futura integración con WhatsApp.
 - Persistencia local en el navegador mediante `localStorage`.
 - Base inicial cargada desde la hoja de seguimiento: 140 casos y referencias a las carpetas encontradas.
@@ -48,7 +49,7 @@ Abre `index.html` en un navegador moderno. Esta versión es un prototipo local; 
 
 ## Modo compartido de prueba
 
-Para iniciar el modo compartido en Windows puedes ejecutar `INICIAR-CRM.ps1`. También puedes abrir una terminal ubicada en esta carpeta y ejecutar `node server.mjs`, después abrir `http://localhost:8787`. La guía de conexión del equipo está en `GUIA-EQUIPO.md`. El servidor crea `data/cases.json` con la base inicial y guarda allí los cambios del CRM. La versión piloto ya aplica sesión individual, filtros por departamento y validación de la regla de facturación en el servidor. Para usar información real desde varios equipos todavía se requiere alojarlo en un servidor interno con HTTPS, copias de seguridad y control de acceso corporativo.
+Para iniciar el modo compartido en Windows puedes ejecutar `INICIAR-CRM.ps1`. También puedes abrir una terminal ubicada en esta carpeta y ejecutar `node server.mjs`, después abrir `http://localhost:8787`. La guía de conexión del equipo está en `GUIA-EQUIPO.md`. El servidor crea `data/cases.json` con la base inicial y guarda allí los cambios del CRM. La versión piloto ya aplica sesión individual y filtros por departamento. Para usar información real desde varios equipos todavía se requiere alojarlo en un servidor interno con HTTPS, copias de seguridad y control de acceso corporativo.
 
 En una instalación nueva, las contraseñas iniciales se reciben mediante variables privadas del servidor. Consulta `.env.example` para conocer los nombres requeridos. Nunca publiques valores reales en GitHub.
 
@@ -61,6 +62,8 @@ En una instalación nueva, las contraseñas iniciales se reciben mediante variab
 5. Genera el dominio público desde la sección Networking del servicio.
 
 El servidor utiliza automáticamente la variable `PORT` de Railway y activa cookies seguras en producción. Los archivos JSON, credenciales, casos reales y datos operativos están excluidos del repositorio.
+
+Vercel puede usarse como capa de interfaz o sitio estático conectada al backend de Railway. No se debe operar el CRM actual como dos servicios independientes, porque las sesiones, el volumen JSON y la cola de Calendar/Gmail se ejecutan en Railway. Para migrar la operación completa a Vercel se requiere una base de datos y almacenamiento persistentes externos, además de reemplazar la cola interna por un worker o cron gestionado.
 
 Los documentos encontrados en las carpetas locales de Windows no están disponibles automáticamente en Railway. Deben migrarse a almacenamiento privado antes de habilitar su consulta remota.
 
