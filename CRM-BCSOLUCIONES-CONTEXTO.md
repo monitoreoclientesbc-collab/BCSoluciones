@@ -3,8 +3,8 @@
 **Documento:** contexto integral del aplicativo  
 **Organización:** BC SOLUCIONES EMPRESARIALES SAS — NIT 901629636  
 **Sede:** Cali, Colombia  
-**Versión documentada:** 25 de septiembre de 2026  
-**Estado:** piloto controlado publicado en Railway  
+**Versión documentada:** 15 de octubre de 2026  
+**Estado:** piloto controlado; Railway conserva la arquitectura productiva y requiere mantener un plan activo para publicar el servicio.  
 **URL productiva:** <https://bcsoluciones-production.up.railway.app/>  
 **Repositorio:** <https://github.com/monitoreoclientesbc-collab/BCSoluciones>
 
@@ -184,6 +184,17 @@ URI OAuth productiva:
 https://bcsoluciones-production.up.railway.app/api/google/callback
 ```
 
+### Coexistencia Railway y Vercel
+
+El repositorio puede estar conectado a ambos proveedores, pero no es técnicamente seguro ejecutar la arquitectura actual como dos aplicaciones operativas independientes. El CRM usa un servidor HTTP persistente, sesiones en memoria, archivos JSON en un volumen y una cola programada cada cinco minutos. Vercel ejecuta funciones sin estado y no ofrece un disco persistente apto para esos datos; por ello, una publicación directa del código actual en Vercel no debe convertirse en una segunda fuente de datos ni de correos/calendario.
+
+La configuración recomendada es mantener **Railway como backend transaccional y fuente única de datos**, y utilizar Vercel únicamente en una de estas modalidades:
+
+1. **Espejo documental o frontend estático:** Vercel entrega una interfaz o sitio público y consume, mediante una API autenticada, el backend de Railway.
+2. **Migración completa a arquitectura serverless:** antes de usar Vercel como CRM operativo se debe sustituir JSON y sesiones en memoria por PostgreSQL/Redis, mover adjuntos y tokens a almacenamiento gestionado y reemplazar la cola interna por cron/worker persistente.
+
+Mientras no se ejecute esa migración, Railway debe conservar el volumen `/app/data`, las variables OAuth y la ejecución de la cola DIAN. Así se evita que dos despliegues creen eventos o correos duplicados y se preserva la trazabilidad de la información.
+
 ## 10. Relación con el Manual operativo v2.5
 
 El manual establece confianza, rigor metodológico, trazabilidad, necesidad de conocer, calidad antes del envío, conocimiento institucional y experiencia del cliente. El CRM soporta parte sustancial de esos principios con casos, responsables, observaciones, documentos, alertas, tareas, mensajes, bitácora y perfiles.
@@ -248,5 +259,5 @@ Abrir `http://localhost:8787`. Para producción no reutilizar contraseñas pilot
 
 ## 14. Vigencia del documento
 
-Esta fotografía técnica corresponde al 25 de septiembre de 2026. Debe actualizarse cuando cambien el manual, la estructura organizacional, la regulación, los permisos, las integraciones o la arquitectura de persistencia.
+Esta fotografía técnica corresponde al 15 de octubre de 2026. Debe actualizarse cuando cambien el manual, la estructura organizacional, la regulación, los permisos, las integraciones o la arquitectura de persistencia.
 
